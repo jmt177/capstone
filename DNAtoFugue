@@ -1,0 +1,806 @@
+from mingus.containers.NoteContainer import NoteContainer
+from mingus.containers.Bar import Bar
+from mingus.containers.Note import Note
+from mingus.containers.Track import Track
+from mingus.containers.Instrument import Instrument, Piano
+from mingus.containers.Composition import Composition
+from mingus.containers.Suite import Suite
+
+import mingus.core.chords as chords
+import mingus.core.intervals as intervals
+import mingus.core.diatonic as diatonic
+import mingus.core.intervals as intervals
+import mingus.core.diatonic as diatonic
+import mingus.core.scales as scales
+import mingus.extra.LilyPond as LilyPond
+import mingus.core.progressions as progressions
+import mingus.core.notes as notes
+import random
+import copy
+
+def getKeys(currentKey, returnList, keys, length):
+    closeKeys = [-1, 1]
+    currentKeyIndex = keys.index(currentKey)
+    for i in range(length):
+        nextKey = random.choice(closeKeys)
+        if currentKeyIndex + nextKey <= 0:
+            key = keys[0]
+        elif currentKeyIndex + nextKey >= len(keys):
+            key = keys[-1]
+        else:
+            key = keys[currentKeyIndex + nextKey]
+        returnList.append(key)
+    return returnList
+
+def transposeNotes(theList, currentKey, nextKey):
+    print "in transpose"
+    print theList
+    direction = True
+    if intervals.measure(currentKey, nextKey) > intervals.measure(nextKey, currentKey):
+        transposeInterval = intervals.measure(nextKey, currentKey)
+        direction = False
+    else:
+        transposeInterval = intervals.measure(currentKey, nextKey)
+
+    for i in range(len(theList)):
+        for j in range(len(theList[i])):
+            
+            simpleCurrentNote = notes.note_to_int(theList[i][j])
+            if direction:
+                if simpleCurrentNote + transposeInterval > 11:
+                    simpleCurrentNote = simpleCurrentNote + transposeInterval - 12
+                else:
+                    simpleCurrentNote += transposeInterval
+            else:
+                if simpleCurrentNote - transposeInterval < 0:
+                    difference = abs(simpleCurrentNote - transposeInterval)
+                    simpleCurrentNote = 12 - difference
+                else:
+                    simpleCurrentNote = simpleCurrentNote - transposeInterval
+            
+            theList[i][j] = diatonic.int_to_note(simpleCurrentNote, nextKey)
+                
+    print theList
+    return theList
+            
+def main():
+    keys = ['Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C','G', 'D',
+        'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#']
+    originalKey = 'C'
+    print originalKey
+    print diatonic.get_notes(originalKey)
+    currentKey = copy.deepcopy(originalKey)
+    soprano = Track(Piano())
+    alto = Track(Piano())
+    tenor = Track(Piano())
+    bass  = Track(Piano())
+    voices = [soprano, alto, tenor, bass]
+    voiceLength = len(voices)
+    subjectFrag = []
+    currentOctave = 4
+    shuffleChord = False
+    up = True
+    dn = False
+    theProgression = createProgression(5, currentKey)
+    lastNote = ''
+    duration = 8
+    theList = []
+    theList = trill(theList, theProgression, 5)
+    
+    
+    expoKeys = ['C', 'G', 'C', 'G']
+    print expoKeys
+    sequence = 'MM'
+    voices, currentKey, subjectFrag = exposition(sequence, currentKey, expoKeys, voices)
+
+
+    codaKeys = [originalKey, originalKey, originalKey, originalKey]
+    voices, currentKey = episode(voices, 4, 4, subjectFrag, 'C', keys)
+    print currentKey
+    voices, currentKey, subjectFrag = entry(sequence, 'G', voices)
+    print currentKey
+    voices, currentKey = episode(voices, 4, 4, subjectFrag, 'F', keys)
+    print currentKey
+    voices, currentKey, subjectFrag = entry(sequence, originalKey, voices)
+    print currentKey
+    #voices = coda(subjectFrag, originalKey, voices)
+    '''
+    with the order
+    for voices:
+        for progression:
+    each chord is an iteration over a single chord. all voices[i] will
+    be part of the same chord. if it were switched
+    for progression:
+        for voices:
+    each voice would sound over a chosen chord
+    '''
+    '''
+    for i in range(len(voices)):
+        for m in range(len(theProgression)):
+            progChord = theProgression[m]
+            nextNote = random.choice(progChord)
+            while lastNote == nextNote:
+                nextNote = random.choice(progChord)
+
+            #if nextNote = rest, don't assign to last note
+            lastNote = nextNote
+            theNote, currentOctave = determineNote(currentNote, nextNote,
+                                                   currentOctave)
+            
+            voices[i].add_notes(theNote, duration)
+            currentNote = nextNote
+            
+    print theProgression
+    print voices
+    '''
+
+    print "made it to this place ln 109"
+    backslash = "\\"
+    sequenceName = 'george Koors'
+    composer = 'George koors'
+    voice1 = 'sopranonotes'
+    voice2 = 'altonotes'
+    voice3 = 'tenornotes'
+    voice4 = 'bassnotes'
+    voiceNames = [voice1, voice2, voice3, voice4]
+    sopranoComp = Composition()
+    altoComp = Composition()
+    tenorComp = Composition()
+    bassComp = Composition()
+    c = [sopranoComp, altoComp, tenorComp, bassComp]
+    compStrings = []
+    header = '\\header { title = ' + sequenceName + ' composer = ' + composer + 'opus = "" }'
+
+    fugue = '\\version "2.16.2" global= {\\time 4/4  \\key a \\major}'
+    fugue += header
+    for i in range(len(voices)):
+        c[i].add_track(voices[i])
+        notes = LilyPond.from_Composition(c[i])
+        compStrings.append(notes)
+    business = " = \\relative c'' { "
+    fugue += '\\score { << '
+    for i in range(len(compStrings)):
+        tempString = compStrings[i][55:]
+        fugue += '\\new Staff {'
+        for j in range(len(tempString)):
+            if tempString[j] !=  '}' and tempString[j] != '{':
+                if voiceNames[i] == voice1 or voice2:
+                    fugue += tempString[j]
+                else:
+                    fugue += '\\clef bass ' + tempString[j]
+                if tempString[j-1] == '}':
+                    fugue += '|'
+        fugue += '  \\bar "|."}'
+    fugue += ' >> \\midi{} \\layout{} }'
+    f = open("fugue.ly", 'w')
+    
+    f.write(fugue)
+    f.close()
+    print "finished"
+
+def exposition(sequence, key, keys, voices):
+    currentOctave = 4
+    rest = False
+    print key
+    b = Bar()
+    entryComplete = [False, False, False, False]
+    tempChords = []
+    nextKey = 0
+    subFrag = []
+    subject = sequenceToNotes(sequence, key)
+    subFrag = subject[:]
+    currentNote = subFrag[0][0]
+    nextNote = subFrag[0][1]
+    for m in range(len(voices)):
+        for j in range(len(subject)):
+            length = len(subject[j])
+            for i in range(length - 1):
+                currentNote = subject[j][i]
+                voices[m].add_notes(currentNote, length)
+                for a in range(len(voices)):
+                    if a != m and not entryComplete[a]:
+                        b.place_rest(length)
+                        voices[a].add_bar(b)
+                    elif a != m:
+                        lengthNum = random.choice([1, 2, 4])
+                        tempNote = ''
+                        tempList = []
+                        tempProg = []
+                        tempProg = createProgression(1, currentNote[0])
+                        tempChords = (tempList, tempProg, currentNote, length)
+                        tempNote = chordNotes(tempList, tempProg, True, length)
+                        newLength = length * lengthNum
+                        for z in range(newLength):
+                            nextNote = random.choice(tempNote)
+                            currentNote = nextNote
+                            voices[a].add_notes(random.choice(currentNote), newLength)
+                nextNote = currentNote
+        entryComplete[m] = True
+        subject = transposeNotes(subFrag, key, keys[m])
+        
+
+    return voices, key, subFrag
+
+
+def episode(voices, subFragLimit, limit, subFrag, key, keys):
+    b = Bar()
+    rest = False
+    count = 0
+    currentOctave = 4
+    progression = []
+    noteList = []
+    keyNotes = diatonic.get_notes(key)
+    diatonicChords = []
+    for i in range(len(keyNotes)):
+        diatonicChords.append(chords.triad(keyNotes[i], key))
+    fragLength = len(subFrag) /2
+    theProgression = subFrag[:fragLength] + diatonicChords
+    random.shuffle(theProgression)
+    fragment = subFrag[:]
+
+    '''for subject fragments'''
+    length = random.choice([2, 4])
+    for i in range(len(voices)):
+        for j in range(limit):
+            for z in range(len(theProgression)):
+                bro = random.choice(theProgression[z])
+                bro, currentOctave = determineNote(bro, bro, currentOctave)
+                voices[i].add_notes(bro, length)
+            for m in range(len(voices)):
+                if i != m and rest:
+                    b.place_rest(length)
+                    voices[m].add_bar(b)
+                elif i != m:
+                    newLength = length* random.choice([1, 2, 4])
+                    for z in range(newLength):
+                        bro = random.choice(theProgression)
+                        broNote = random.choice(bro)
+                        broNote, currentOctave = determineNote(broNote, broNote, currentOctave)
+                        voices[m].add_notes(broNote, newLength)
+                rest = random.choice([True, False])
+
+            '''
+                print subFrag[j]
+                print "subFrag"
+                key = random.choice(keys)
+                nextKey = keys.index(key)
+                key = keys[nextKey]
+                progression = seriesChords(progression, theProgression, False, key, length)
+
+
+
+            for m in range(len(noteList)):
+
+                    if isinstance(noteList[m], (list, Note, Track, Bar, NoteContainer, Instrument)):
+                        voices[i].add_notes(random.choice(noteList[m]), length)
+                    else:
+                        voices[i].add_notes(random.choice(noteList[0]), length)
+                        print noteList
+            '''
+
+    return voices, key
+
+def entry(sequence, key, voices):
+    
+    rest = False
+    print key
+    b = Bar()
+    entryComplete = [False, False, False, False]
+    tempChords = []
+    nextKey = 0
+    subFrag = []
+    subject = sequenceToNotes(sequence, key)
+    subFrag = subject[:]
+    someLength = random.choice([1, 2, 4])
+    for m in range(len(voices)):
+        for j in range(len(subject)):
+            length = len(subject[j])
+            for i in range(length):
+                currentNote = subject[j][i]
+                voices[m].add_notes(currentNote, length)
+                for a in range(len(voices)):
+                    if a != m and not entryComplete[a] and not rest:
+                        b.place_rest(length)
+                        voices[a].add_bar(b)
+                    else:
+                        lengthNum = random.choice([1, 2, 4])
+                        tempNote = ''
+                        tempList = []
+                        tempProg = []
+                        tempProg = createProgression(1, currentNote[0])
+                        tempChords = (tempList, tempProg, currentNote, length)
+                        tempNote = chordNotes(tempList, tempProg, True, length)
+                        newLength = length * lengthNum
+                        for z in range(newLength):
+                            currentNote = random.choice(tempNote)
+                            voices[a].add_notes(random.choice(currentNote), newLength)
+                    rest = random.choice([True, False])
+        
+
+    return voices, key, subFrag
+
+def coda(subject, key, voices):
+    print "in coda"
+    rest = False
+    print key
+    b = Bar()
+    tempChords = []
+    nextKey = 0
+    subFrag = []
+    circleProgression = ["I", "IV", "viidim7", "iii", "vi", "ii", "V7"]
+    circleProgression = progressions.to_chords(circleProgression, key)
+    
+    for m in range(len(voices)):
+        for j in range(len(subject)):
+            length = len(subject[j])
+            for i in range(length):
+                currentNote = subject[j][i]
+                voices[m].add_notes(currentNote, length)
+                for a in range(len(voices)):
+                    if a != m:
+                        if rest:
+                            b.place_rest(length)
+                            voices[a].add_bar(b)
+                        else:
+                            lengthNum = random.choice([1, 2, 4])
+                            tempNote = ''
+                            tempList = []
+                            tempProg = []
+                            tempProg = createProgression(1, currentNote[0])
+                            tempChords = (tempList, tempProg, currentNote, length)
+                            tempNote = chordNotes(tempList, tempProg, True, length)
+                            newLength = length * lengthNum
+                            for z in range(newLength):
+                                currentNote = random.choice(tempNote)
+                                voices[a].add_notes(random.choice(currentNote), newLength)
+                       
+                    rest = random.choice([True, False])
+                    
+    for m in range(len(voices)):
+        for j in range(len(circleProgression)):
+            length = len(circleProgression[j])
+
+            currentNote = random.choice(circleProgression[j])
+            voices[m].add_notes(currentNote, length * 2)
+    for m in range(len(voices)):
+        print "ending loop"
+        voices[m].add_notes(random.choice(circleProgression[0]), 1)
+
+    return voices
+
+'''
+Converts the amino acid sequence to a series of notes which will be the
+subject of the fugue. Amino acids are represented by their one-letter codes.
+aas = amino acid sequence
+originalKey = the original key
+The following functions are used frequently:
+def rootProgression(aa, chords):
+    returns aa as a list of notes, the roots of each
+    chord in chords.
+
+def iterateChord(aa, chords, key, length):
+    returns aa as a list of notes sounding over each
+    chord in chords with length notes
+    
+def rootNoteAlt(aa, chords, length):
+    returns aa as a list of notes sounding over each
+    chord in chords, alternating between the root and
+    a random note of the chord for length notes
+    
+def chordNotes(aa, chords, direction, length)
+    returns aa as a list of notes sounding over each note
+    in each chord in chords length long. direction is a
+    boolean, True goes up, False down.
+
+def chromatic(aa, chords, direction, length):
+    iterates over chords, creating a chromatic run of
+    length starting at each chord root. direction is a
+    boolean, True goes up, False down.
+    
+def trill(aa, chords, length):
+    returns aa as a trill on the root of each chord,
+    length notes long each.
+    
+def randomChords(aa, chords, shuffle, length):
+    returns aa as a list of random chords taken from chords,
+    length long. boolean shuffle: True shuffles the note order
+    in the returned list of chords, false leaves them in root position
+
+def seriesChords(aa, chords, shuffle, length):
+    returns aa as a list of chords in order from progression.
+    wraps if length exceeds chord length.
+'''
+def sequenceToNotes(aas, originalKey):
+    up = True
+    dn = False
+    keyNotes = diatonic.get_notes(originalKey)
+    diatonicChords = []
+    for i in range(len(keyNotes)):
+        diatonicChords.append(chords.triad(keyNotes[i], originalKey))
+    circleProgression = ["I", "IV", "viidim7", "iii", "vi", "ii", "V"]
+    subject = []
+    shuffleChord = False
+    print diatonicChords
+    '''Methionine'''
+    Methionine = []
+    M = []
+
+    Methionine = randomChords(Methionine, diatonicChords, shuffleChord, originalKey, 2)
+    M = chordNotes(M, Methionine, up, 2)
+ 
+    '''Alanine'''
+    Alanine = []
+    A = []
+    Alanine = randomChords(Alanine, diatonicChords, shuffleChord, originalKey, 2)
+    A = chordNotes(A, Alanine, up, 2)
+
+    '''Cysteine'''
+    Cysteine = []
+    C = []
+    Cysteine = randomChords(Cysteine, diatonicChords, shuffleChord, originalKey, 2)
+    C = rootProgression(C, Cysteine)
+
+    '''Phenylalanine'''
+    Phen = []
+    F = []
+    Phen = randomChords(Phen, diatonicChords, shuffleChord, originalKey, 2)
+    F = iterateChord(F, Phen, originalKey, 4)
+    
+    '''Glycine'''
+    Glycine = []
+    G = []
+    Glycine = randomChords(Glycine, diatonicChords, shuffleChord, originalKey, 2)
+    G = rootProgression(G, Glycine)
+
+    '''Threonine'''
+    Threonine = []
+    T = []
+    Threonine = seriesChords(Threonine, circleProgression, shuffleChord, originalKey, 2)
+    T = rootProgression(T, Threonine)
+
+    '''Serine'''
+    Serine = []
+    S = []
+    Serine = randomChords(Serine, diatonicChords, shuffleChord, originalKey, 2)
+    S = rootProgression(S, Serine)
+
+    '''Tryptophan'''
+    Tryptophan = []
+    W = []
+    Tryptophan = randomChords(Tryptophan, diatonicChords, shuffleChord, originalKey, 2)
+    W = rootNoteAlt(W, Tryptophan, 2)
+    
+    '''Tyrosine'''
+    Tyrosine = []
+    Y = []
+    Tyrosine = randomChords(Tyrosine, diatonicChords, shuffleChord, originalKey, 2)
+    Y = iterateChord(Y, Tyrosine, originalKey, 2)
+
+    '''Proline'''
+    P = []
+    Proline = []
+    Proline = seriesChords(Proline, circleProgression, shuffleChord, originalKey, 2)
+    P = chordNotes(P, Proline, up, 2)
+    
+    '''Leucine'''
+    Leucine = []
+    L = []
+    Leucine = seriesChords(Leucine, circleProgression, shuffleChord, originalKey, 2)
+    direction = True
+    #True is up, False is down
+    L = chromatic(L, Leucine, direction, 2)
+    
+    '''Valine'''
+    Valine = []
+    V = []
+    Valine = randomChords(Valine, diatonicChords, shuffleChord, originalKey, 2)
+    V = rootNoteAlt(V, Valine, 2)
+    
+    '''Isoleucine'''
+    Isoleucine = []
+    I = []
+    Isoleucine = randomChords(Isoleucine, diatonicChords, shuffleChord, originalKey, 2)
+    I = trill(I, Isoleucine, 4)
+    
+    '''Histidine'''
+    Histidine = []
+    H = []
+    Histidine = randomChords(Histidine, diatonicChords, shuffleChord, originalKey, 2)
+    H = rootProgression(H, Histidine)
+    
+    '''Aspartic Acid'''
+    Aspartic = []
+    D = []
+    Aspartic = randomChords(Aspartic, diatonicChords, shuffleChord, originalKey, 2)
+    D = rootProgression(D, Aspartic)
+    
+    '''Gultamic Acid'''
+    Gultamic = []
+    E = []
+    Gultamic = randomChords(Gultamic, diatonicChords, shuffleChord, originalKey, 2)
+    E = rootProgression(E, Gultamic)
+    
+    '''Asparagine'''
+    Asparagine = []
+    N = []
+    Asparagine = randomChords(Asparagine, diatonicChords, shuffleChord, originalKey, 2)
+    N = rootProgression(N, Asparagine)
+    
+    '''Glutamine'''
+    Glutamine = []
+    Q = []
+    Gultamine = randomChords(Glutamine, diatonicChords, shuffleChord, originalKey, 2)
+    Q = rootProgression(Q, Gultamine)
+    
+    '''Lysine'''
+    Lysine = []
+    K = []
+    Lysine = randomChords(Lysine, diatonicChords, shuffleChord, originalKey, 2)
+    K = rootProgression(K, Lysine)
+
+    '''Arginine'''
+    Arginine = []
+    R = []
+    Arginine = seriesChords(Arginine, circleProgression, shuffleChord, originalKey, 2)
+    R = rootNoteAlt(R, Arginine, 2)
+    
+    convert = {
+        'M' : M,    # Methionine
+        'A' : A,    # Alanine
+        'C' : C,    # Cysteine
+        'F' : F,    # Phenylalanine
+        'G' : G,    # Glycine
+        'T' : T,    # Threonine
+        'S' : S,    # Serine
+        'W' : W,    # Tryptophan
+        'Y' : Y,    # Tyrosine
+        'P' : P,    # Proline
+        'L' : L,    # Leucine
+        'V' : V,    # Valine
+        'I' : I,    # Isoleucine
+        'H' : H,    # Histidine
+        'D' : D,    # Aspartic Acid
+        'E' : E,    # Glutamic Acid
+        'N' : N,    # Asparagine
+        'Q' : Q,    # Glutamine
+        'K' : K,    # Lysine
+        'R' : R     # Arginine
+         }
+    for i in range(len(aas)):
+        subject += convert[aas[i]]
+        print convert[aas[i]]
+    print "finished subject"
+    print subject
+    return subject
+
+#takes a list of lists and shuffles the order of each sub-list
+def shuffleLists(theList):
+    for i in range(len(theList)):
+        random.shuffle(theList[i])
+    return theList
+
+#Returns aa as a list of roots of the chords within progression
+def rootProgression(aa, chords):
+    for i in range(len(chords)):
+        aa.append(chords[i][0])
+    return [aa]
+
+#returns aa as a list of random chords from chords
+def randomChords(aa, chords, shuffle, key, length):
+    
+    for i in range(length):
+        chord = random.choice(chords)
+        aa.append(chord)
+    done = progressions.to_chords(aa, key)
+    if done == []:
+        done = aa
+    if shuffle:
+        done = shuffleLists(aa)
+    return done
+
+#returns aa as a list of notes taken from chords on each chord
+def iterateChord(aa, chords, key, length):
+    dummy = []
+    prog = progressions.to_chords(chords, key)
+    for m in range(len(chords)):
+        chordLength = len(chords[m])
+        for i in range(chordLength):
+            for j in range(length):
+                dummy.append(random.choice(chords[m]))
+        aa.append(dummy)
+        dummy = []
+    return aa
+
+#returns aa as a list of chords in order from progression
+#wraps if length exceeds chord length
+def seriesChords(aa, chords, shuffle, key, length):
+    size = len(chords)
+    count = random.randrange(0, size)
+    for i in range(size):
+        if count >= length - 1:
+            count = 0
+        if i == length - 2:
+            aa.append(chords[-2])
+            aa.append(chords[-1])
+            if shuffle:
+                aa = shuffleLists(aa)
+            aa = progressions.to_chords(aa, key)
+            if aa == []:
+                aa = chords
+            return aa
+        else:
+            aa.append(chords[count])
+        count += 1
+
+
+#returns aa as a list of notes that alternate the root and other notes in chord
+def rootNoteAlt(aa, chords, length):
+    lastNote = []
+    note = []
+    notes = []
+    count = 0
+    for m in range(len(chords)):
+        for i in range(length):
+            if i % 2 == 0:
+                notes.append(chords[m][0])
+                count += 1
+            else:
+                note = random.choice(chords[m][1:-1])
+                
+                if note == lastNote:
+                    note = random.choice(chords[m][1:-1])
+                lastNote = note
+    
+                notes.append(note)
+                count += 1
+        aa.append(notes)
+        notes = []
+    return aa
+
+#returns a run of ascending notes for each chord in chords, length long
+def chordNotes(aa, chords, direcion, length):
+    dummy = []
+    for m in range(len(chords)):
+        for i in range(length):
+            rate = i % len(chords[m])
+            if direcion:
+                dummy.append(chords[m][rate])
+            else:
+                dummy.append(chords[m][-rate])
+        aa.append(dummy)
+        dummy = []
+    return aa
+
+#returns a chromatic run length long from the roots of the chords up or down
+#depending on the boolean direction
+def chromatic(aa, chords, direction, length):
+    note = ''
+    lastNote = ''
+    dummy = []
+    for m in range(len(chords)):
+        start = notes.note_to_int(chords[m][0])
+        for i in range(length):
+            interval = i % 11
+            if start + interval > 11:
+                note = notes.int_to_note(start + interval - 11)
+            else:
+                note = notes.int_to_note(start + interval)
+            dummy.append(note)
+        aa.append(dummy)
+        dummy = []
+    return aa
+
+#returns a series of trills on the root of each chord
+def trill(aa, chords, length):
+    dummy = []
+    for m in range(len(chords)):
+        note = chords[m][0]
+        for i in range(length):
+            if i % 2 == 0:
+                dummy.append(note)
+            else:
+                dummy.append(intervals.minor_second(note))
+        aa.append(dummy)
+        dummy = []
+    return aa
+
+def output(voices):
+    c = Composition()
+    fugue = ''
+    for i in range(len(voices)):
+        c.add_track(voices[i])
+    #audioFugue = MidiFileOut.write_Composition("testing.mid", c)
+    fugue = LilyPond.from_Composition(c)
+    LilyPond.to_pdf(fugue, "fugue")
+        
+    
+def createProgression(length, key):
+    progression = []
+    chords =["I", "ii", "III", "iii","IV", "iv", "V", "v", "VI",
+             "vi", "VII", "vii"]
+    
+    chordAlterations = ["m7", "7", "m7b5", "7b5", "dim", "dim7", "aug", ""]
+
+    for i in range(length):
+        theChord = random.choice(chords)
+        theAlter = random.choice(chordAlterations)
+        progression.append(theChord + theAlter)
+    theProgression = progressions.to_chords(progression, key)
+    return theProgression
+
+def determineNote(currentNote, nextNote, currentOctave):
+    theNote = Note()
+    lastNote = Note()
+    octaveLimitUp = 5
+    octaveLimitDn = 4
+    upperLimit = 'B-8'
+    lowerLimit = 'F-0'
+    simpleCurrentNote = notes.note_to_int(currentNote)
+    simpleNextNote = notes.note_to_int(nextNote)
+
+    '''
+    determines interval choices. intervals.measure(arg1, arg2) measures
+    from agr1 to arg2.
+    '''
+    intervalUp = intervals.measure(currentNote, nextNote)      
+    intervalDn = intervals.measure(nextNote, currentNote)
+    
+    '''
+    determines the direction the next note is traveling, the smallest
+    possible distance to be the correct note. 
+
+    finding the difference in octave down uses 12 instead of 11
+    because that code is unreachable if intervalUp = intervalDn,
+    therefore the lowest possible result when calculating the
+    remaining distance from the breaking point to the destination,
+    traversing octaves, should be 1.
+    '''
+    if intervalUp > intervalDn:
+        '''going down'''
+        if simpleCurrentNote - intervalDn < 0:
+            '''octave down'''
+            currentOctave -= 1
+            difference = abs(simpleCurrentNote - intervalDn)
+            simpleCurrentNote = 12 - difference
+        else:
+            simpleCurrentNote = abs(simpleCurrentNote - intervalDn)
+            
+    else:
+        '''going up or notes are equal'''
+        if intervalUp + simpleCurrentNote > 11:
+            '''up an octave'''
+            currentOctave += 1
+            simpleCurrentNote = intervalUp + simpleCurrentNote - 12
+        else:
+            simpleCurrentNote += intervalUp
+            
+    '''
+    to eliminate enharmonics, the calculated note is cast as diatonic to
+    itself, in the key of nextNote, the note it is supposed to be,
+    e.g. nextNote = Bb and simpleCurrentNote = A#, A# cast in the key
+    of Bb becomes Bb.
+    '''
+    calcNote = diatonic.int_to_note(simpleCurrentNote, nextNote)
+    theNote.set_note(calcNote, currentOctave)
+    if theNote.octave > octaveLimitUp:
+        while theNote.octave > octaveLimitUp:
+            theNote.octave_down()
+    elif theNote.octave < octaveLimitDn:
+        while theNote.octave < octaveLimitDn:
+            theNote.octave_up()
+
+    '''check that theNote is within the instrument boundaries'''
+    if int(theNote) > int(Note(upperLimit)):
+        theNote.octave_down()
+        currentOctave = theNote.octave
+    elif int(theNote) < int(Note(lowerLimit)):
+        theNote.octave_up()
+        currentOctave = theNote.octave
+
+    currentOctave = theNote.octave
+
+    return theNote, currentOctave
+
+main()
+
+    
